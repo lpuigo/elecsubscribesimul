@@ -1,0 +1,39 @@
+# Exemple de configuration — prix d'exemple NON contractuels, à remplacer par la grille réelle.
+abonnements:
+  - nom: "Zen Fixe Base 12 kVA"
+    puissance_kva: 9
+    part_fixe: { montant: 23.76, periodicite: mensuelle }
+    tarifs:
+      - { libelle: Base, debut: "00:00", fin: "00:00", prix_kwh: 0.2065 }
+
+  - nom: "Zen Fixe HP/HC 12 kVA"
+    puissance_kva: 9
+    part_fixe: { montant: 23.76, periodicite: mensuelle }
+    tarifs:
+      - { libelle: HC, debut: "23:00", fin: "07:00", prix_kwh: 0.1650 }
+      - { libelle: HP, debut: "07:00", fin: "23:00", prix_kwh: 0.2231 }
+
+  - nom: "Zen Fixe Online 12 kVA"
+    puissance_kva: 9
+    part_fixe: { montant: 23.76, periodicite: mensuelle }
+    tarifs:
+      - { libelle: Base, debut: "00:00", fin: "00:00", prix_kwh: 0.1909 }
+
+  - nom: "Zen Online HP/HC 12 kVA"
+    puissance_kva: 9
+    part_fixe: { montant: 23.76, periodicite: mensuelle }
+    tarifs:
+      - { libelle: HC, debut: "23:00", fin: "07:00", prix_kwh: 0.1531 }
+      - { libelle: HP, debut: "07:00", fin: "23:00", prix_kwh: 0.2059 }
+
+  - nom: "Zen Tempo 12 kVA"
+    puissance_kva: 9
+    part_fixe: { montant: 23.50, periodicite: mensuelle }
+    debut_journee_tarifaire: "07:00"
+    tarifs:
+      - { couleur: bleu,  libelle: HC, debut: "23:00", fin: "07:00", prix_kwh: 0.1356 }
+      - { couleur: bleu,  libelle: HP, debut: "07:00", fin: "23:00", prix_kwh: 0.1654 }
+      - { couleur: blanc, libelle: HC, debut: "23:00", fin: "07:00", prix_kwh: 0.1536 }
+      - { couleur: blanc, libelle: HP, debut: "07:00", fin: "23:00", prix_kwh: 0.1921 }
+      - { couleur: rouge, libelle: HC, debut: "23:00", fin: "07:00", prix_kwh: 0.1615 }
+      - { couleur: rouge, libelle: HP, debut: "07:00", fin: "23:00", prix_kwh: 0.7295 }
