@@ -167,37 +167,38 @@ Les horodatages Enedis sont en heure légale française. Le programme travaille 
 
 Pour Tempo, la couleur d'un jour s'applique de **6 h ce jour-là à 6 h le lendemain**. Exemple : le créneau du 02/09 à 01:00 relève de la couleur du **01/09**.
 
-- **REQ-TIME-03** : le champ `debut_journee_tarifaire` de l'abonnement détermine la journée tarifaire utilisée pour retrouver la couleur. Le regroupement par jour dans le fichier de sortie reste en **jour civil** (00:00–24:00), pour que tous les abonnements soient comparables colonne à colonne.
+- **REQ-TIME-03** : le champ `debut_journee_tarifaire` de l'abonnement détermine la journée tarifaire utilisée pour retrouver la couleur. Le regroupement par jour dans le fichier de sortie reste en **jour civil** (00:00–24:00), pour que tous les abonnements soient comparables ligne à ligne.
 - Conséquence : le premier créneau 00:00–06:00 de la période nécessite la couleur de la veille de la date de début (à prévoir dans le calendrier, ou couverte par `--couleur-par-defaut`).
 
 ## 5. Données de sortie : fichier Excel
 
 ### 5.1 Principe de présentation (demande explicite)
 
-La consommation apparaît **en ligne**, et les coûts figurent **sur les lignes suivantes, une ligne par abonnement**. Les colonnes représentent le temps.
+Chaque métrique (consommation, coût de chaque abonnement) occupe **une colonne** ; les lignes représentent le temps. Les lignes de synthèse sont placées **tout en haut**, sous la ligne d'en-tête, et le détail (jours ou créneaux) défile en dessous.
 
-**REQ-OUT-02 – Ordre des colonnes : synthèse à gauche, détail à droite.** Sur chaque feuille de données, les colonnes de synthèse (Total période, Moyenne / jour, Extrapolation annuelle, écart avec le moins cher…) sont placées **immédiatement après la colonne des libellés et avant les colonnes de détail** (jours ou créneaux). Les colonnes de libellés et de synthèse sont **figées** (volet figé, avec excelize `SetPanes` positionné sur la première colonne de détail et la première ligne de données). En faisant défiler horizontalement, l'utilisateur garde ainsi en permanence sous les yeux les libellés et les valeurs globales, tandis que le détail défile à droite. Une bordure verticale marquée sépare la zone de synthèse de la zone de détail.
+**REQ-OUT-02 – Ordre des lignes : synthèse en haut, détail en dessous.** Sur chaque feuille de données, la ligne d'en-tête (noms des métriques) est suivie des lignes de synthèse (Total période, Moyenne / jour, Extrapolation annuelle, écart avec le moins cher…), **avant les lignes de détail** (une par jour ou par créneau). La première colonne (libellés / dates) et les lignes d'en-tête et de synthèse sont **figées** (volet figé, avec excelize `SetPanes` positionné sur la première ligne de détail et la deuxième colonne). En faisant défiler verticalement, l'utilisateur garde ainsi en permanence sous les yeux les noms des métriques et les valeurs globales, tandis que le détail défile dessous. Une bordure horizontale marquée sépare la zone de synthèse de la zone de détail.
 
 ### 5.2 Feuilles
 
 **Feuille `Synthèse journalière`** (feuille principale)
 
-| | Total période | Moyenne / jour | Extrapolation annuelle | Écart vs moins cher | 01/09/2026 | 02/09/2026 | … |
-|---|---|---|---|---|---|---|---|
-| Consommation (kWh) | 60,38 | … | … | | 8,52 | … | … |
-| Base 9 kVA (€) | … | … | … | … | … | … | … |
-| HP/HC 9 kVA (€) | … | … | … | … | … | … | … |
-| Tempo 9 kVA (€) | … | … | … | … | … | … | … |
-| Couleur Tempo | | | | | bleu | … | … |
+| | Consommation (kWh) | Base 9 kVA (€) | HP/HC 9 kVA (€) | Tempo 9 kVA (€) | Couleur Tempo | Créneaux manquants |
+|---|---|---|---|---|---|---|
+| Total période | 60,38 | … | … | … | | … |
+| Moyenne / jour | … | … | … | … | | |
+| Extrapolation annuelle | … | … | … | … | | |
+| Écart vs moins cher | | … | … | … | | |
+| 01/09/2026 | 8,52 | … | … | … | bleu | … |
+| 02/09/2026 | … | … | … | … | … | … |
 
-Colonnes figées : A à E (libellés et synthèse). Le détail journalier commence en colonne F.
+Volet figé : colonne A et lignes 1 à 5 (en-tête et synthèse). Le détail journalier commence en ligne 6.
 
-- Sous chaque ligne d'abonnement, ajouter éventuellement (option `--detail`) des sous-lignes : part fixe, coût variable, et kWh par libellé de tarif (HP, HC, …).
-- Mettre en évidence (mise en forme conditionnelle) l'abonnement le moins cher sur le total de la période. La colonne « Écart vs moins cher » indique l'écart en € et en % par rapport à lui.
+- À droite de chaque colonne d'abonnement, ajouter éventuellement (option `--detail`) des colonnes de détail : part fixe, coût variable, et kWh par libellé de tarif (HP, HC, …).
+- Mettre en évidence l'abonnement le moins cher sur le total de la période. La ligne « Écart vs moins cher » indique l'écart en € et en % par rapport à lui.
 
 **Feuille `Détail 30 min`**
 
-Même logique, avec une colonne par créneau de 30 minutes : ligne d'en-tête « Début », ligne « Puissance moyenne (kW) », ligne « Énergie (kWh) », puis une ligne de coût variable par abonnement (et une ligne indiquant le libellé de tarif appliqué, option `--detail`). Conformément à REQ-OUT-02, les colonnes de synthèse (Total période, Moyenne par créneau, Maximum) précèdent les colonnes de créneaux et sont figées avec la colonne des libellés. Pour un mois, cela représente environ 1 500 colonnes, ce qui reste dans les limites d'Excel (16 384 colonnes, soit environ 340 jours au pas de 30 min).
+Même logique, avec une ligne par créneau de 30 minutes : colonne « Début », colonne « Puissance moyenne (kW) », colonne « Énergie (kWh) », puis une colonne de coût variable par abonnement (et une colonne indiquant le libellé de tarif appliqué, option `--detail`). Conformément à REQ-OUT-02, les lignes de synthèse (Total période, Moyenne par créneau, Maximum) précèdent les lignes de créneaux et sont figées avec la ligne d'en-tête et la colonne « Début ». Pour un mois, cela représente environ 1 500 lignes, ce qui reste très en deçà des limites d'Excel (1 048 576 lignes).
 - **REQ-OUT-03** : si la série fusionnée dépasse cette limite, la feuille `Détail 30 min` n'est pas générée, un avertissement l'indique, et les autres feuilles sont produites normalement (l'option `--sans-detail-30min` permet aussi de la désactiver explicitement).
 
 **Feuille `Paramètres`**
@@ -283,7 +284,7 @@ elecsubscribesimul/
   - jours de changement d'heure (46 et 50 créneaux) ;
   - valeurs `NA` ;
   - part fixe annuelle (année bissextile) et mensuelle (mois de 28, 30 et 31 jours).
-- Un test de bout en bout exécute la commande sur le fichier d'exemple, relit le classeur produit avec excelize et vérifie la présence des feuilles, l'ordre des colonnes (REQ-OUT-02), les volets figés et les totaux.
+- Un test de bout en bout exécute la commande sur le fichier d'exemple, relit le classeur produit avec excelize et vérifie la présence des feuilles, l'ordre des lignes (REQ-OUT-02), les volets figés et les totaux.
 
 ## 8. Hors périmètre (V1)
 

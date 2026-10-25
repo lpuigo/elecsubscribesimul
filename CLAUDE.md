@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## État du projet
 
-V1 implémentée selon la spécification (module `elecsubscribesimul`, Go 1.25), avec tests : `go build`, `go vet` et `go test ./...` passent (le paquet `internal/export` n'a pas de tests). Pas de dépôt git initialisé.
+V1 implémentée selon la spécification (module `elecsubscribesimul`, Go 1.25), avec tests : `go build`, `go vet` et `go test ./...` passent (le paquet `internal/export` n'a pas de tests). 
 
-`testdata/` contient désormais des données réelles : ~40 relevés Enedis hebdomadaires (`22184080962179_Export_energie_Consommation_JJMMAAAA-JJMMAAAA.xlsx`, du 26/01/2026 au 24/10/2026, un seul PRM), `tempo.csv` (couleurs Tempo du 2025-12-29 au 2026-10-31) et `abonnements.yaml` (offres « Zen » 12 kVA : Fixe Base, Fixe HP/HC, Fixe Online, Online HP/HC, Tempo ; prix non contractuels). Ils servent de jeu d'essai de bout en bout (`--courbe testdata --couleurs testdata/tempo.csv`) ; les tests unitaires, eux, génèrent toujours des fichiers synthétiques avec excelize. Ne pas modifier ces fichiers de données.
+`testdata/` contient désormais des données réelles : ~40 relevés Enedis hebdomadaires (`22184080962179_Export_energie_Consommation_JJMMAAAA-JJMMAAAA.xlsx`, du 29/12/2025 au 24/10/2026, un seul PRM), `tempo.csv` (couleurs Tempo du 2025-12-29 au 2026-10-31) et `abonnements.yaml` (offres « Zen » 12 kVA : Fixe Base, Fixe HP/HC, Fixe Online, Online HP/HC, Tempo ; prix non contractuels). Ils servent de jeu d'essai de bout en bout (`--courbe testdata --couleurs testdata/tempo.csv`) ; les tests unitaires, eux, génèrent toujours des fichiers synthétiques avec excelize. Ne pas modifier ces fichiers de données.
 
 Les documents sont rédigés en français ; garder le français pour la documentation et les messages utilisateur du programme (erreurs, avertissements, libellés Excel, options CLI, clés YAML). Le code (identifiants, commentaires) est en anglais : voir `Docs/design-rules.md` §6.
 
@@ -42,10 +42,10 @@ Dépendances autorisées : `github.com/xuri/excelize/v2`, `gopkg.in/yaml.v3`, st
 - Fuseau `Europe/Paris` avec `import _ "time/tzdata"` (Windows). Aux changements d'heure (46/50 créneaux), **ne jamais dédoublonner sur l'horodatage**.
 - Tempo : la journée tarifaire commence à `debut_journee_tarifaire` (06:00), donc un créneau à 01:00 prend la couleur de J−1, mais l'agrégation de sortie reste en jour **civil**.
 - Plages tarifaires : `debut == fin` = 24 h ; `fin < debut` = à cheval sur minuit ; validation de couverture exacte de 24 h sans chevauchement par abonnement et par couleur ; créneaux à cheval sur une frontière non alignée répartis au prorata.
-- `--courbe` est répétable (fichier ou répertoire, non récursif). Fusion : clé = instant absolu de début (pas la chaîne horaire, à cause du changement d'heure), dernier lu gagne même pour `NA`, chevauchement = warning non bloquant, PRM différents = erreur, trous = créneaux manquants. Au-delà de ~16 384 colonnes, la feuille `Détail 30 min` est omise.
+- `--courbe` est répétable (fichier ou répertoire, non récursif). Fusion : clé = instant absolu de début (pas la chaîne horaire, à cause du changement d'heure), dernier lu gagne même pour `NA`, chevauchement = warning non bloquant, PRM différents = erreur, trous = créneaux manquants. Au-delà de ~1 048 576 lignes, la feuille `Détail 30 min` est omise.
 - Valeurs `NA` : conservées, marquées manquantes, exclues des calculs, comptées par jour.
 - Montants en `float64`, arrondi à l'affichage uniquement. Pas de `panic` pour les erreurs de données (`fmt.Errorf("...: %w")`).
-- Sortie Excel (REQ-OUT-02) : colonnes de synthèse à gauche, détail à droite, volets figés via `SetPanes` sur la première colonne de détail.
+- Sortie Excel (REQ-OUT-02) : tableau transposé : une colonne par métrique, lignes de synthèse en haut, détail (jours / créneaux) en lignes dessous, volets figés via `SetPanes` sur la première ligne de détail et la 2e colonne.
 
 ## Commandes
 

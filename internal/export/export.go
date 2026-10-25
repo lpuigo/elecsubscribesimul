@@ -17,9 +17,9 @@ const (
 	detailSheet     = "Détail 30 min"
 	parametersSheet = "Paramètres"
 
-	maxExcelColumns   = 16384
-	summaryDayColumns = 5 // label + 4 summary columns
-	summary30Columns  = 4 // label + 3 summary columns
+	maxExcelRows      = 1048576
+	summaryHeaderRows = 5 // title + 4 summary rows (total, average, extrapolation, gap)
+	detailHeaderRows  = 4 // title + 3 summary rows (total, average, maximum)
 	lightGreen        = "C6EFCE"
 	dateTimeFormat    = "02/01/2006 15:04"
 	shortDateFormat   = "02/01/2006"
@@ -49,9 +49,9 @@ func Write(path string, c loadcurve.Curve, r pricing.Result, opts Options) ([]st
 	var warnings []string
 	switch {
 	case opts.SkipDetail30:
-	case len(c.Measurements)+summary30Columns > maxExcelColumns:
+	case len(c.Measurements)+detailHeaderRows > maxExcelRows:
 		warnings = append(warnings, fmt.Sprintf(
-			"feuille %q non générée : %d créneaux dépassent la limite de colonnes d'Excel", detailSheet, len(c.Measurements)))
+			"feuille %q non générée : %d créneaux dépassent la limite de lignes d'Excel", detailSheet, len(c.Measurements)))
 	default:
 		if _, err := f.NewSheet(detailSheet); err != nil {
 			return nil, err
@@ -99,14 +99,14 @@ func (w *writer) val(col, row int, v any, style int) {
 	}
 }
 
-// freeze freezes the first column(s) up to the given count and the header row.
-func (w *writer) freeze(columns int) {
+// freeze freezes the first columns and the first rows (title and summary), so the detail scrolls below.
+func (w *writer) freeze(columns, rows int) {
 	if w.err != nil {
 		return
 	}
-	cell, _ := excelize.CoordinatesToCellName(columns+1, 2)
+	cell, _ := excelize.CoordinatesToCellName(columns+1, rows+1)
 	w.err = w.f.SetPanes(w.sheet, &excelize.Panes{
-		Freeze: true, XSplit: columns, YSplit: 1, TopLeftCell: cell, ActivePane: "bottomRight",
+		Freeze: true, XSplit: columns, YSplit: rows, TopLeftCell: cell, ActivePane: "bottomRight",
 	})
 }
 

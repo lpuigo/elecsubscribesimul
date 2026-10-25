@@ -93,15 +93,15 @@ func TestEndToEnd(t *testing.T) {
 		}
 	}
 
-	// REQ-OUT-02: summary on the left, detail from column F, frozen pane.
-	if v, _ := f.GetCellValue("Synthèse journalière", "F1"); v != "01/09/2026" {
-		t.Errorf("F1 = %q", v)
+	// REQ-OUT-02: summary rows on top, daily detail below, frozen pane.
+	if v, _ := f.GetCellValue("Synthèse journalière", "A6"); v != "01/09/2026" {
+		t.Errorf("A6 = %q", v)
 	}
-	if v, _ := f.GetCellValue("Synthèse journalière", "B1"); v != "Total période" {
-		t.Errorf("B1 = %q", v)
+	if v, _ := f.GetCellValue("Synthèse journalière", "A2"); v != "Total période" {
+		t.Errorf("A2 = %q", v)
 	}
 	panes, err := f.GetPanes("Synthèse journalière")
-	if err != nil || !panes.Freeze || panes.XSplit != 5 || panes.TopLeftCell != "F2" {
+	if err != nil || !panes.Freeze || panes.XSplit != 1 || panes.YSplit != 5 || panes.TopLeftCell != "B6" {
 		t.Errorf("unexpected frozen pane: %+v (%v)", panes, err)
 	}
 
@@ -110,7 +110,7 @@ func TestEndToEnd(t *testing.T) {
 	if kwh := parse(t, raw); math.Abs(kwh-72) > 1e-6 {
 		t.Errorf("consumption = %v, want 72", kwh)
 	}
-	raw, _ = f.GetCellValue("Synthèse journalière", "B3", excelize.Options{RawCellValue: true})
+	raw, _ = f.GetCellValue("Synthèse journalière", "C2", excelize.Options{RawCellValue: true})
 	if cout := parse(t, raw); math.Abs(cout-(72*0.20+3)) > 1e-6 {
 		t.Errorf("Base cost = %v, want %v", cout, 72*0.20+3)
 	}

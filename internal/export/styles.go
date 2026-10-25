@@ -9,10 +9,10 @@ const (
 )
 
 type styleSpec struct {
-	format     string
-	bold       bool
-	leftBorder bool
-	fill       string
+	format    string
+	bold      bool
+	topBorder bool
+	fill      string
 }
 
 // styleFactory creates and memoizes the workbook styles (Arial font, French formats).
@@ -34,8 +34,8 @@ func (s *styleFactory) id(spec styleSpec) int {
 		formatCopy := spec.format
 		style.CustomNumFmt = &formatCopy
 	}
-	if spec.leftBorder {
-		style.Border = []excelize.Border{{Type: "left", Color: "000000", Style: 2}}
+	if spec.topBorder {
+		style.Border = []excelize.Border{{Type: "top", Color: "000000", Style: 2}}
 	}
 	if spec.fill != "" {
 		style.Fill = excelize.Fill{Type: "pattern", Color: []string{spec.fill}, Pattern: 1}

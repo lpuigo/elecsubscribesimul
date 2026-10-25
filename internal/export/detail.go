@@ -7,14 +7,15 @@ import (
 	"elecsubscribesimul/internal/pricing"
 )
 
+// writeDetail writes the 30-minute detail sheet: one column per metric, summary rows first (REQ-OUT-02),
+// then one row per slot.
 func writeDetail(f *excelize.File, st *styleFactory, c loadcurve.Curve, r pricing.Result, detail bool) error {
 	w := &writer{f: f, sheet: detailSheet}
 	bold := st.id(styleSpec{bold: true})
-	first := summary30Columns + 1
 
 	w.val(1, 1, "Début", bold)
 	for i, h := range []string{"Total période", "Moyenne par créneau", "Maximum"} {
-		w.val(2+i, 1, h, bold)
+		w.val(1, 2+i, h, bold)
 	}
 
 	// Summary statistics over the non-missing slots.
@@ -37,19 +38,19 @@ func writeDetail(f *excelize.File, st *styleFactory, c loadcurve.Curve, r pricin
 		return sum / float64(count)
 	}
 
-	w.val(1, 2, "Puissance moyenne (kW)", bold)
-	w.val(3, 2, avg(sumKW), st.id(styleSpec{format: kwFormat}))
-	w.val(4, 2, maxKW, st.id(styleSpec{format: kwFormat}))
-	w.val(1, 3, "Énergie (kWh)", bold)
-	w.val(2, 3, sumKWh, st.id(styleSpec{format: kwhFormat}))
+	w.val(2, 1, "Puissance moyenne (kW)", bold)
+	w.val(2, 3, avg(sumKW), st.id(styleSpec{format: kwFormat}))
+	w.val(2, 4, maxKW, st.id(styleSpec{format: kwFormat}))
+	w.val(3, 1, "Énergie (kWh)", bold)
+	w.val(3, 2, sumKWh, st.id(styleSpec{format: kwhFormat}))
 	w.val(3, 3, avg(sumKWh), st.id(styleSpec{format: kwhFormat}))
 
-	row := 4
-	// costRow locates a subscription row; a negative row holds the applied tariff label.
-	type costRow struct{ row, sub int }
-	var costs []costRow
+	col := 4
+	// costCol locates the cost column of a subscription and its optional "applied tariff" column.
+	type costCol struct{ col, labelCol, sub int }
+	var costs []costCol
 	for is, s := range r.Subscriptions {
-		w.val(1, row, s.Subscription.Name+" (€)", bold)
+		w.val(col, 1, s.Subscription.Name+" (€)", bold)
 		total, maxi := 0.0, 0.0
 		for i, m := range c.Measurements {
 			if !m.Missing {
@@ -59,38 +60,38 @@ func writeDetail(f *excelize.File, st *styleFactory, c loadcurve.Curve, r pricin
 				}
 			}
 		}
-		w.val(2, row, total, st.id(styleSpec{format: euroFormat}))
-		w.val(3, row, avg(total), st.id(styleSpec{format: euroFormat}))
-		w.val(4, row, maxi, st.id(styleSpec{format: euroFormat}))
-		costs = append(costs, costRow{row, is})
-		row++
+		w.val(col, 2, total, st.id(styleSpec{format: euroFormat}))
+		w.val(col, 3, avg(total), st.id(styleSpec{format: euroFormat}))
+		w.val(col, 4, maxi, st.id(styleSpec{format: euroFormat}))
+		cc := costCol{col: col, sub: is}
+		col++
 		if detail {
-			w.val(1, row, "   tarif appliqué : "+s.Subscription.Name, st.id(styleSpec{}))
-			costs = append(costs, costRow{-row, is})
-			row++
+			w.val(col, 1, "tarif appliqué : "+s.Subscription.Name, bold)
+			cc.labelCol = col
+			col++
 		}
+		costs = append(costs, cc)
 	}
 
 	for i, m := range c.Measurements {
-		col := first + i
+		row := detailHeaderRows + 1 + i
 		border := i == 0
-		w.val(col, 1, m.Start.Format(dateTimeFormat), st.id(styleSpec{bold: true, leftBorder: border}))
+		w.val(1, row, m.Start.Format(dateTimeFormat), st.id(styleSpec{bold: true, topBorder: border}))
 		if m.Missing {
 			continue
 		}
-		w.val(col, 2, m.KW, st.id(styleSpec{format: kwFormat, leftBorder: border}))
-		w.val(col, 3, m.KWh(), st.id(styleSpec{format: kwhFormat, leftBorder: border}))
-		for _, cr := range costs {
-			if cr.row > 0 {
-				w.val(col, cr.row, r.Subscriptions[cr.sub].Slots[i].Cost, st.id(styleSpec{format: euroFormat, leftBorder: border}))
-			} else {
-				w.val(col, -cr.row, r.Subscriptions[cr.sub].Slots[i].Label, st.id(styleSpec{leftBorder: border}))
+		w.val(2, row, m.KW, st.id(styleSpec{format: kwFormat, topBorder: border}))
+		w.val(3, row, m.KWh(), st.id(styleSpec{format: kwhFormat, topBorder: border}))
+		for _, cc := range costs {
+			slot := r.Subscriptions[cc.sub].Slots[i]
+			w.val(cc.col, row, slot.Cost, st.id(styleSpec{format: euroFormat, topBorder: border}))
+			if cc.labelCol > 0 {
+				w.val(cc.labelCol, row, slot.Label, st.id(styleSpec{topBorder: border}))
 			}
 		}
 	}
-	w.width(1, 1, 34)
-	w.width(2, summary30Columns, 18)
-	w.width(first, first+len(c.Measurements)-1, 16)
-	w.freeze(summary30Columns)
+	w.width(1, 1, 24)
+	w.width(2, col-1, 22)
+	w.freeze(1, detailHeaderRows)
 	return w.err
 }
