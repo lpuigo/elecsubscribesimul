@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestParser(t *testing.T) {
+func TestParse(t *testing.T) {
 	const ok = `
 abonnements:
   - nom: "Tempo"
@@ -15,18 +15,18 @@ abonnements:
       - { couleur: Bleu, libelle: HC, debut: "22:00", fin: "06:00", prix_kwh: 0.13 }
       - { couleur: bleu, libelle: HP, debut: "06:00", fin: "22:00", prix_kwh: 0.16 }
 `
-	abos, err := Parser([]byte(ok))
+	subs, err := Parse([]byte(ok))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(abos) != 1 || !abos[0].UtiliseCouleurs() || abos[0].DebutJourneeTarifaire != 360 || abos[0].Tarifs[0].Couleur != "bleu" {
-		t.Errorf("abonnement mal chargé : %+v", abos)
+	if len(subs) != 1 || !subs[0].UsesColors() || subs[0].TariffDayStart != 360 || subs[0].Tariffs[0].Color != "bleu" {
+		t.Errorf("subscription badly loaded: %+v", subs)
 	}
 
-	tests := []struct{ nom, yaml, erreur string }{
-		{"champ inconnu", "abonnements:\n  - nom: x\n    inconnu: 1\n", "inconnu"},
-		{"aucun abonnement", "abonnements: []\n", "aucun abonnement"},
-		{"trou", `
+	tests := []struct{ name, yaml, wantErr string }{
+		{"unknown field", "abonnements:\n  - nom: x\n    inconnu: 1\n", "inconnu"},
+		{"no subscription", "abonnements: []\n", "aucun abonnement"},
+		{"gap", `
 abonnements:
   - nom: "X"
     part_fixe: { montant: 1, periodicite: annuelle }
@@ -35,8 +35,8 @@ abonnements:
 `, "non couvertes"},
 	}
 	for _, tt := range tests {
-		if _, err := Parser([]byte(tt.yaml)); err == nil || !strings.Contains(err.Error(), tt.erreur) {
-			t.Errorf("%s : erreur = %v, attendu %q", tt.nom, err, tt.erreur)
+		if _, err := Parse([]byte(tt.yaml)); err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+			t.Errorf("%s: error = %v, want %q", tt.name, err, tt.wantErr)
 		}
 	}
 }

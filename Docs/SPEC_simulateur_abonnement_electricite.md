@@ -252,11 +252,11 @@ Organisation conforme aux conventions Go, chaque paquet étant testable indépen
 ```text
 elecsubscribesimul/
 ├── cmd/simu-abonnement/main.go   point d'entrée, parsing des options, codes de retour
-├── internal/enedis/              un fichier xlsx → Releve{PRM, Mesures []Mesure{Debut, Fin time.Time; KW float64; Manquante bool}} ; découverte des .xlsx d'un répertoire
-├── internal/courbe/              fusion de plusieurs Releve en une série triée (écrasement, chevauchements, trous) → Courbe + []Avertissement
-├── internal/config/              YAML → []Abonnement validés
-├── internal/calendrier/          couleurs des jours (CSV), couleur par défaut
-├── internal/tarification/        moteur de calcul pur : aucune entrée/sortie, aucune dépendance externe
+├── internal/enedis/              un fichier xlsx → loadcurve.Statement{PRM, Measurements []Measurement{Start, End time.Time; KW float64; Missing bool}} ; découverte des .xlsx d'un répertoire
+├── internal/loadcurve/           modèle de courbe de charge ; fusion de plusieurs Statement en une série triée (écrasement, chevauchements, trous) → Curve + []string d'avertissements
+├── internal/config/              YAML → []subscription.Subscription validés
+├── internal/calendar/           couleurs des jours (CSV), couleur par défaut
+├── internal/pricing/            moteur de calcul pur : aucune entrée/sortie, aucune dépendance externe
 ├── internal/export/              production du classeur Excel
 └── testdata/                     fichier Enedis d'exemple, fichiers synthétiques, configurations de test
 ```

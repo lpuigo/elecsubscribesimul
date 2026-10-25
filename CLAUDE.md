@@ -8,7 +8,7 @@ V1 implémentée selon la spécification (module `elecsubscribesimul`, Go 1.25),
 
 `testdata/` contient désormais des données réelles : ~40 relevés Enedis hebdomadaires (`22184080962179_Export_energie_Consommation_JJMMAAAA-JJMMAAAA.xlsx`, du 26/01/2026 au 24/10/2026, un seul PRM), `tempo.csv` (couleurs Tempo du 2025-12-29 au 2026-10-31) et `abonnements.yaml` (offres « Zen » 12 kVA : Fixe Base, Fixe HP/HC, Fixe Online, Online HP/HC, Tempo ; prix non contractuels). Ils servent de jeu d'essai de bout en bout (`--courbe testdata --couleurs testdata/tempo.csv`) ; les tests unitaires, eux, génèrent toujours des fichiers synthétiques avec excelize. Ne pas modifier ces fichiers de données.
 
-Les documents sont rédigés en français ; garder le français pour la documentation et les messages utilisateur du programme.
+Les documents sont rédigés en français ; garder le français pour la documentation et les messages utilisateur du programme (erreurs, avertissements, libellés Excel, options CLI, clés YAML). Le code (identifiants, commentaires) est en anglais : voir `Docs/design-rules.md` §6.
 
 ## Documents de référence (à lire avant de coder)
 
@@ -23,12 +23,12 @@ CLI Go (binaire unique, `simu-abonnement`) qui lit une courbe de charge Linky/En
 
 ```
 cmd/simu-abonnement/   main : options (flag), codes de retour 0/1/2
-internal/enedis/       un xlsx -> Releve{PRM, []Mesure} ; découverte des .xlsx d'un répertoire
-internal/courbe/       fusion de plusieurs Releve (dernier lu écrase, avertissements)
-internal/abonnement/   types métier Abonnement/Tarif/PartFixe + Validate() (couverture 24 h, errors.Join)
-internal/config/       YAML -> []abonnement.Abonnement validés
-internal/calendrier/   couleurs de jours (CSV date;couleur), couleur par défaut
-internal/tarification/ moteur de calcul PUR : aucune E/S, ne connaît ni Excel ni YAML
+internal/enedis/       un xlsx -> loadcurve.Statement{PRM, []Measurement} ; découverte des .xlsx d'un répertoire
+internal/loadcurve/    modèle de courbe de charge + fusion de plusieurs Statement (dernier lu écrase, avertissements)
+internal/subscription/ types métier Subscription/Tariff/FixedFee + Validate() (couverture 24 h, errors.Join)
+internal/config/       YAML -> []subscription.Subscription validés
+internal/calendar/     couleurs de jours (CSV date;couleur), couleur par défaut
+internal/pricing/      moteur de calcul PUR : aucune E/S, ne connaît ni Excel ni YAML
 internal/export/       production du classeur Excel
 testdata/
 ```

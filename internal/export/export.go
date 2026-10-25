@@ -1,4 +1,4 @@
-// Package export produit le classeur Excel de comparaison.
+// Package export produces the Excel comparison workbook.
 package export
 
 import (
@@ -7,111 +7,114 @@ import (
 
 	"github.com/xuri/excelize/v2"
 
-	"elecsubscribesimul/internal/courbe"
-	"elecsubscribesimul/internal/tarification"
+	"elecsubscribesimul/internal/loadcurve"
+	"elecsubscribesimul/internal/pricing"
 )
 
+// Sheet names are part of the user-facing output and stay in French.
 const (
-	feuilleSynthese   = "Synthèse journalière"
-	feuilleDetail     = "Détail 30 min"
-	feuilleParametres = "Paramètres"
+	summarySheet    = "Synthèse journalière"
+	detailSheet     = "Détail 30 min"
+	parametersSheet = "Paramètres"
 
-	maxColonnesExcel   = 16384
-	colonnesSyntheseJ  = 5 // libellé + 4 colonnes de synthèse
-	colonnesSynthese30 = 4 // libellé + 3 colonnes de synthèse
-	vertClair          = "C6EFCE"
-	formatDateHeure    = "02/01/2006 15:04"
-	formatDateCourt    = "02/01/2006"
+	maxExcelColumns   = 16384
+	summaryDayColumns = 5 // label + 4 summary columns
+	summary30Columns  = 4 // label + 3 summary columns
+	lightGreen        = "C6EFCE"
+	dateTimeFormat    = "02/01/2006 15:04"
+	shortDateFormat   = "02/01/2006"
 )
 
+// Options tunes the content of the workbook.
 type Options struct {
-	Detail         bool
-	SansDetail30   bool
-	Avertissements []string
-	Genere         time.Time
+	Detail       bool
+	SkipDetail30 bool
+	Warnings     []string
+	Generated    time.Time
 }
 
-// Ecrire génère le classeur et renvoie les avertissements propres à l'export.
-func Ecrire(chemin string, c courbe.Courbe, r tarification.Resultat, opts Options) ([]string, error) {
+// Write generates the workbook and returns the warnings specific to the export.
+func Write(path string, c loadcurve.Curve, r pricing.Result, opts Options) ([]string, error) {
 	f := excelize.NewFile()
 	defer f.Close()
-	st := nouvelleFabrique(f)
+	st := newStyleFactory(f)
 
-	if err := f.SetSheetName("Sheet1", feuilleSynthese); err != nil {
+	if err := f.SetSheetName("Sheet1", summarySheet); err != nil {
 		return nil, err
 	}
-	if err := ecrireSynthese(f, st, r, opts.Detail); err != nil {
-		return nil, fmt.Errorf("feuille %s: %w", feuilleSynthese, err)
+	if err := writeSummary(f, st, r, opts.Detail); err != nil {
+		return nil, fmt.Errorf("feuille %s: %w", summarySheet, err)
 	}
 
-	var avertissements []string
+	var warnings []string
 	switch {
-	case opts.SansDetail30:
-	case len(c.Mesures)+colonnesSynthese30 > maxColonnesExcel:
-		avertissements = append(avertissements, fmt.Sprintf(
-			"feuille %q non générée : %d créneaux dépassent la limite de colonnes d'Excel", feuilleDetail, len(c.Mesures)))
+	case opts.SkipDetail30:
+	case len(c.Measurements)+summary30Columns > maxExcelColumns:
+		warnings = append(warnings, fmt.Sprintf(
+			"feuille %q non générée : %d créneaux dépassent la limite de colonnes d'Excel", detailSheet, len(c.Measurements)))
 	default:
-		if _, err := f.NewSheet(feuilleDetail); err != nil {
+		if _, err := f.NewSheet(detailSheet); err != nil {
 			return nil, err
 		}
-		if err := ecrireDetail(f, st, c, r, opts.Detail); err != nil {
-			return nil, fmt.Errorf("feuille %s: %w", feuilleDetail, err)
+		if err := writeDetail(f, st, c, r, opts.Detail); err != nil {
+			return nil, fmt.Errorf("feuille %s: %w", detailSheet, err)
 		}
 	}
 
-	if _, err := f.NewSheet(feuilleParametres); err != nil {
+	if _, err := f.NewSheet(parametersSheet); err != nil {
 		return nil, err
 	}
-	if err := ecrireParametres(f, st, c, r, opts, avertissements); err != nil {
-		return nil, fmt.Errorf("feuille %s: %w", feuilleParametres, err)
+	if err := writeParameters(f, st, c, r, opts, warnings); err != nil {
+		return nil, fmt.Errorf("feuille %s: %w", parametersSheet, err)
 	}
 	f.SetActiveSheet(0)
-	if err := f.SaveAs(chemin); err != nil {
-		return nil, fmt.Errorf("écriture de %s: %w", chemin, err)
+	if err := f.SaveAs(path); err != nil {
+		return nil, fmt.Errorf("écriture de %s: %w", path, err)
 	}
-	return avertissements, nil
+	return warnings, nil
 }
 
-// ecrireur simplifie l'écriture cellule par cellule en mémorisant la première erreur.
-type ecrireur struct {
+// writer simplifies cell-by-cell writing by remembering the first error.
+type writer struct {
 	f     *excelize.File
-	feuil string
+	sheet string
 	err   error
 }
 
-func (e *ecrireur) val(col, ligne int, v any, style int) {
-	if e.err != nil {
+func (w *writer) val(col, row int, v any, style int) {
+	if w.err != nil {
 		return
 	}
-	cell, err := excelize.CoordinatesToCellName(col, ligne)
+	cell, err := excelize.CoordinatesToCellName(col, row)
 	if err != nil {
-		e.err = err
+		w.err = err
 		return
 	}
-	if err := e.f.SetCellValue(e.feuil, cell, v); err != nil {
-		e.err = err
+	if err := w.f.SetCellValue(w.sheet, cell, v); err != nil {
+		w.err = err
 		return
 	}
 	if style != 0 {
-		e.err = e.f.SetCellStyle(e.feuil, cell, cell, style)
+		w.err = w.f.SetCellStyle(w.sheet, cell, cell, style)
 	}
 }
 
-func (e *ecrireur) figer(colonnes int) {
-	if e.err != nil {
+// freeze freezes the first column(s) up to the given count and the header row.
+func (w *writer) freeze(columns int) {
+	if w.err != nil {
 		return
 	}
-	cell, _ := excelize.CoordinatesToCellName(colonnes+1, 2)
-	e.err = e.f.SetPanes(e.feuil, &excelize.Panes{
-		Freeze: true, XSplit: colonnes, YSplit: 1, TopLeftCell: cell, ActivePane: "bottomRight",
+	cell, _ := excelize.CoordinatesToCellName(columns+1, 2)
+	w.err = w.f.SetPanes(w.sheet, &excelize.Panes{
+		Freeze: true, XSplit: columns, YSplit: 1, TopLeftCell: cell, ActivePane: "bottomRight",
 	})
 }
 
-func (e *ecrireur) largeur(debut, fin int, w float64) {
-	if e.err != nil {
+func (w *writer) width(from, to int, width float64) {
+	if w.err != nil {
 		return
 	}
-	a, _ := excelize.ColumnNumberToName(debut)
-	b, _ := excelize.ColumnNumberToName(fin)
-	e.err = e.f.SetColWidth(e.feuil, a, b, w)
+	a, _ := excelize.ColumnNumberToName(from)
+	b, _ := excelize.ColumnNumberToName(to)
+	w.err = w.f.SetColWidth(w.sheet, a, b, width)
 }

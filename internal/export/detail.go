@@ -3,93 +3,94 @@ package export
 import (
 	"github.com/xuri/excelize/v2"
 
-	"elecsubscribesimul/internal/courbe"
-	"elecsubscribesimul/internal/tarification"
+	"elecsubscribesimul/internal/loadcurve"
+	"elecsubscribesimul/internal/pricing"
 )
 
-func ecrireDetail(f *excelize.File, st *fabriqueStyles, c courbe.Courbe, r tarification.Resultat, detail bool) error {
-	e := &ecrireur{f: f, feuil: feuilleDetail}
-	gras := st.id(specStyle{gras: true})
-	premiere := colonnesSynthese30 + 1
+func writeDetail(f *excelize.File, st *styleFactory, c loadcurve.Curve, r pricing.Result, detail bool) error {
+	w := &writer{f: f, sheet: detailSheet}
+	bold := st.id(styleSpec{bold: true})
+	first := summary30Columns + 1
 
-	e.val(1, 1, "Début", gras)
+	w.val(1, 1, "Début", bold)
 	for i, h := range []string{"Total période", "Moyenne par créneau", "Maximum"} {
-		e.val(2+i, 1, h, gras)
+		w.val(2+i, 1, h, bold)
 	}
 
-	// Statistiques de synthèse sur les créneaux non manquants.
-	nb, sommeKW, sommeKWh, maxKW := 0, 0.0, 0.0, 0.0
-	for _, m := range c.Mesures {
-		if m.Manquante {
+	// Summary statistics over the non-missing slots.
+	count, sumKW, sumKWh, maxKW := 0, 0.0, 0.0, 0.0
+	for _, m := range c.Measurements {
+		if m.Missing {
 			continue
 		}
-		nb++
-		sommeKW += m.KW
-		sommeKWh += m.KWh()
+		count++
+		sumKW += m.KW
+		sumKWh += m.KWh()
 		if m.KW > maxKW {
 			maxKW = m.KW
 		}
 	}
-	moy := func(somme float64) float64 {
-		if nb == 0 {
+	avg := func(sum float64) float64 {
+		if count == 0 {
 			return 0
 		}
-		return somme / float64(nb)
+		return sum / float64(count)
 	}
 
-	e.val(1, 2, "Puissance moyenne (kW)", gras)
-	e.val(3, 2, moy(sommeKW), st.id(specStyle{format: formatKW}))
-	e.val(4, 2, maxKW, st.id(specStyle{format: formatKW}))
-	e.val(1, 3, "Énergie (kWh)", gras)
-	e.val(2, 3, sommeKWh, st.id(specStyle{format: formatKWh}))
-	e.val(3, 3, moy(sommeKWh), st.id(specStyle{format: formatKWh}))
+	w.val(1, 2, "Puissance moyenne (kW)", bold)
+	w.val(3, 2, avg(sumKW), st.id(styleSpec{format: kwFormat}))
+	w.val(4, 2, maxKW, st.id(styleSpec{format: kwFormat}))
+	w.val(1, 3, "Énergie (kWh)", bold)
+	w.val(2, 3, sumKWh, st.id(styleSpec{format: kwhFormat}))
+	w.val(3, 3, avg(sumKWh), st.id(styleSpec{format: kwhFormat}))
 
-	ligne := 4
-	type rangCout struct{ row, abo int }
-	var couts []rangCout
-	for ia, a := range r.Abonnements {
-		e.val(1, ligne, a.Abonnement.Nom+" (€)", gras)
+	row := 4
+	// costRow locates a subscription row; a negative row holds the applied tariff label.
+	type costRow struct{ row, sub int }
+	var costs []costRow
+	for is, s := range r.Subscriptions {
+		w.val(1, row, s.Subscription.Name+" (€)", bold)
 		total, maxi := 0.0, 0.0
-		for i, m := range c.Mesures {
-			if !m.Manquante {
-				total += a.Creneaux[i].Cout
-				if a.Creneaux[i].Cout > maxi {
-					maxi = a.Creneaux[i].Cout
+		for i, m := range c.Measurements {
+			if !m.Missing {
+				total += s.Slots[i].Cost
+				if s.Slots[i].Cost > maxi {
+					maxi = s.Slots[i].Cost
 				}
 			}
 		}
-		e.val(2, ligne, total, st.id(specStyle{format: formatEuro}))
-		e.val(3, ligne, moy(total), st.id(specStyle{format: formatEuro}))
-		e.val(4, ligne, maxi, st.id(specStyle{format: formatEuro}))
-		couts = append(couts, rangCout{ligne, ia})
-		ligne++
+		w.val(2, row, total, st.id(styleSpec{format: euroFormat}))
+		w.val(3, row, avg(total), st.id(styleSpec{format: euroFormat}))
+		w.val(4, row, maxi, st.id(styleSpec{format: euroFormat}))
+		costs = append(costs, costRow{row, is})
+		row++
 		if detail {
-			e.val(1, ligne, "   tarif appliqué : "+a.Abonnement.Nom, st.id(specStyle{}))
-			couts = append(couts, rangCout{-ligne, ia})
-			ligne++
+			w.val(1, row, "   tarif appliqué : "+s.Subscription.Name, st.id(styleSpec{}))
+			costs = append(costs, costRow{-row, is})
+			row++
 		}
 	}
 
-	for i, m := range c.Mesures {
-		col := premiere + i
-		bord := i == 0
-		e.val(col, 1, m.Debut.Format(formatDateHeure), st.id(specStyle{gras: true, bordureG: bord}))
-		if m.Manquante {
+	for i, m := range c.Measurements {
+		col := first + i
+		border := i == 0
+		w.val(col, 1, m.Start.Format(dateTimeFormat), st.id(styleSpec{bold: true, leftBorder: border}))
+		if m.Missing {
 			continue
 		}
-		e.val(col, 2, m.KW, st.id(specStyle{format: formatKW, bordureG: bord}))
-		e.val(col, 3, m.KWh(), st.id(specStyle{format: formatKWh, bordureG: bord}))
-		for _, rc := range couts {
-			if rc.row > 0 {
-				e.val(col, rc.row, r.Abonnements[rc.abo].Creneaux[i].Cout, st.id(specStyle{format: formatEuro, bordureG: bord}))
+		w.val(col, 2, m.KW, st.id(styleSpec{format: kwFormat, leftBorder: border}))
+		w.val(col, 3, m.KWh(), st.id(styleSpec{format: kwhFormat, leftBorder: border}))
+		for _, cr := range costs {
+			if cr.row > 0 {
+				w.val(col, cr.row, r.Subscriptions[cr.sub].Slots[i].Cost, st.id(styleSpec{format: euroFormat, leftBorder: border}))
 			} else {
-				e.val(col, -rc.row, r.Abonnements[rc.abo].Creneaux[i].Libelle, st.id(specStyle{bordureG: bord}))
+				w.val(col, -cr.row, r.Subscriptions[cr.sub].Slots[i].Label, st.id(styleSpec{leftBorder: border}))
 			}
 		}
 	}
-	e.largeur(1, 1, 34)
-	e.largeur(2, colonnesSynthese30, 18)
-	e.largeur(premiere, premiere+len(c.Mesures)-1, 16)
-	e.figer(colonnesSynthese30)
-	return e.err
+	w.width(1, 1, 34)
+	w.width(2, summary30Columns, 18)
+	w.width(first, first+len(c.Measurements)-1, 16)
+	w.freeze(summary30Columns)
+	return w.err
 }

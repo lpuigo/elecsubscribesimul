@@ -1,4 +1,4 @@
-// Package config charge le fichier YAML des abonnements.
+// Package config loads the YAML file of subscriptions.
 package config
 
 import (
@@ -10,108 +10,109 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"elecsubscribesimul/internal/abonnement"
+	"elecsubscribesimul/internal/subscription"
 )
 
-type fichier struct {
-	Abonnements []abonnementYAML `yaml:"abonnements"`
+type file struct {
+	Subscriptions []yamlSubscription `yaml:"abonnements"`
 }
 
-type abonnementYAML struct {
-	Nom                   string      `yaml:"nom"`
-	PuissanceKVA          int         `yaml:"puissance_kva"`
-	PartFixe              partFixeYML `yaml:"part_fixe"`
-	DebutJourneeTarifaire string      `yaml:"debut_journee_tarifaire"`
-	Tarifs                []tarifYAML `yaml:"tarifs"`
+type yamlSubscription struct {
+	Name           string       `yaml:"nom"`
+	PowerKVA       int          `yaml:"puissance_kva"`
+	FixedFee       yamlFixedFee `yaml:"part_fixe"`
+	TariffDayStart string       `yaml:"debut_journee_tarifaire"`
+	Tariffs        []yamlTariff `yaml:"tarifs"`
 }
 
-type partFixeYML struct {
-	Montant     float64 `yaml:"montant"`
-	Periodicite string  `yaml:"periodicite"`
+type yamlFixedFee struct {
+	Amount      float64 `yaml:"montant"`
+	Periodicity string  `yaml:"periodicite"`
 }
 
-type tarifYAML struct {
-	Couleur string  `yaml:"couleur"`
-	Libelle string  `yaml:"libelle"`
-	Debut   string  `yaml:"debut"`
-	Fin     string  `yaml:"fin"`
-	PrixKWh float64 `yaml:"prix_kwh"`
+type yamlTariff struct {
+	Color       string  `yaml:"couleur"`
+	Label       string  `yaml:"libelle"`
+	Start       string  `yaml:"debut"`
+	End         string  `yaml:"fin"`
+	PricePerKWh float64 `yaml:"prix_kwh"`
 }
 
-// Charger lit et valide les abonnements ; toutes les anomalies sont regroupées dans l'erreur.
-func Charger(chemin string) ([]abonnement.Abonnement, error) {
-	data, err := os.ReadFile(chemin)
+// Load reads and validates the subscriptions; every anomaly is gathered in the error.
+func Load(path string) ([]subscription.Subscription, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("lecture de la configuration: %w", err)
 	}
-	abos, err := Parser(data)
+	subs, err := Parse(data)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", chemin, err)
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	return abos, nil
+	return subs, nil
 }
 
-func Parser(data []byte) ([]abonnement.Abonnement, error) {
-	var f fichier
+// Parse decodes and validates YAML subscriptions.
+func Parse(data []byte) ([]subscription.Subscription, error) {
+	var f file
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(&f); err != nil {
 		return nil, fmt.Errorf("configuration YAML invalide: %w", err)
 	}
-	if len(f.Abonnements) == 0 {
+	if len(f.Subscriptions) == 0 {
 		return nil, errors.New("configuration : aucun abonnement défini")
 	}
 	var errs []error
-	abos := make([]abonnement.Abonnement, 0, len(f.Abonnements))
-	noms := map[string]bool{}
-	for _, y := range f.Abonnements {
-		a, err := convertir(y)
+	subs := make([]subscription.Subscription, 0, len(f.Subscriptions))
+	names := map[string]bool{}
+	for _, y := range f.Subscriptions {
+		s, err := convert(y)
 		if err != nil {
 			errs = append(errs, err)
 		}
-		if err := a.Validate(); err != nil {
+		if err := s.Validate(); err != nil {
 			errs = append(errs, err)
 		}
-		if noms[a.Nom] {
-			errs = append(errs, fmt.Errorf("abonnement %q défini plusieurs fois", a.Nom))
+		if names[s.Name] {
+			errs = append(errs, fmt.Errorf("abonnement %q défini plusieurs fois", s.Name))
 		}
-		noms[a.Nom] = true
-		abos = append(abos, a)
+		names[s.Name] = true
+		subs = append(subs, s)
 	}
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
 	}
-	return abos, nil
+	return subs, nil
 }
 
-func convertir(y abonnementYAML) (abonnement.Abonnement, error) {
+func convert(y yamlSubscription) (subscription.Subscription, error) {
 	var errs []error
-	a := abonnement.Abonnement{
-		Nom:          y.Nom,
-		PuissanceKVA: y.PuissanceKVA,
-		PartFixe: abonnement.PartFixe{
-			Montant:     y.PartFixe.Montant,
-			Periodicite: abonnement.Periodicite(strings.ToLower(y.PartFixe.Periodicite)),
+	s := subscription.Subscription{
+		Name:     y.Name,
+		PowerKVA: y.PowerKVA,
+		FixedFee: subscription.FixedFee{
+			Amount:      y.FixedFee.Amount,
+			Periodicity: subscription.Periodicity(strings.ToLower(y.FixedFee.Periodicity)),
 		},
 	}
-	if y.DebutJourneeTarifaire != "" {
-		m, err := abonnement.ParseMinutes(y.DebutJourneeTarifaire)
+	if y.TariffDayStart != "" {
+		m, err := subscription.ParseMinutes(y.TariffDayStart)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("abonnement %q, debut_journee_tarifaire: %w", y.Nom, err))
+			errs = append(errs, fmt.Errorf("abonnement %q, debut_journee_tarifaire: %w", y.Name, err))
 		}
-		a.DebutJourneeTarifaire = m
+		s.TariffDayStart = m
 	}
-	for _, t := range y.Tarifs {
-		debut, err1 := abonnement.ParseMinutes(t.Debut)
-		fin, err2 := abonnement.ParseMinutes(t.Fin)
+	for _, t := range y.Tariffs {
+		start, err1 := subscription.ParseMinutes(t.Start)
+		end, err2 := subscription.ParseMinutes(t.End)
 		if err := errors.Join(err1, err2); err != nil {
-			errs = append(errs, fmt.Errorf("abonnement %q, tarif %q: %w", y.Nom, t.Libelle, err))
+			errs = append(errs, fmt.Errorf("abonnement %q, tarif %q: %w", y.Name, t.Label, err))
 		}
-		couleur := strings.ToLower(strings.TrimSpace(t.Couleur))
-		if couleur == "*" {
-			couleur = ""
+		color := strings.ToLower(strings.TrimSpace(t.Color))
+		if color == "*" {
+			color = ""
 		}
-		a.Tarifs = append(a.Tarifs, abonnement.Tarif{Couleur: couleur, Libelle: t.Libelle, Debut: debut, Fin: fin, PrixKWh: t.PrixKWh})
+		s.Tariffs = append(s.Tariffs, subscription.Tariff{Color: color, Label: t.Label, Start: start, End: end, PricePerKWh: t.PricePerKWh})
 	}
-	return a, errors.Join(errs...)
+	return s, errors.Join(errs...)
 }

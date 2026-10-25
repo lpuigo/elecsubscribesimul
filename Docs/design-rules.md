@@ -115,7 +115,28 @@ Règles strictes associées :
 
 ---
 
-## 6. Anti-patterns à bannir explicitement
+## 6. Langue du code — anglais
+
+Le code source est rédigé en **anglais**, quelle que soit la langue des spécifications, de la
+documentation ou des échanges avec l'utilisateur (même s'ils sont en français ou autre) :
+
+- **Identifiants en anglais** : noms de variables, de fonctions, de méthodes, de types, de
+  champs, de constantes (et de paquets/fichiers) — ex. `ReadReading`, `dayColor`,
+  `tariffDayStart`, `ErrPRMMismatch`.
+- **Commentaires en anglais** : en-têtes de fonction/type (doc comments) comme commentaires
+  dans le corps du code. Le principe de la §5 reste valable : ne commenter que le POURQUOI non
+  évident.
+- **Ce qui reste dans la langue du projet** : la documentation (spécifications, README,
+  `CLAUDE.md`), les messages affichés à l'utilisateur et les échanges de session.
+- **Termes métier** : traduire en anglais les concepts du domaine de façon cohérente et unique
+  (un glossaire dans la spécification évite les traductions concurrentes) ; les sigles et noms
+  propres sans équivalent usuel (`PRM`, `Tempo`, `HP`/`HC`, `Enedis`, `Linky`) restent tels quels.
+- **Ne pas mélanger les langues dans un même identifiant** : pas de `getReleve` ni de
+  `computeCout`.
+
+---
+
+## 7. Anti-patterns à bannir explicitement
 
 - **God object / God package** : une struct ou un package qui connaît et fait tout.
 - **Fuite de couche** : logique SQL/fichier dans un handler HTTP, logique métier dans un
@@ -131,7 +152,7 @@ Règles strictes associées :
 
 ---
 
-## 7. Checklist de démarrage d'un nouveau projet
+## 8. Checklist de démarrage d'un nouveau projet
 
 Avant d'écrire la première feature, poser explicitement :
 
