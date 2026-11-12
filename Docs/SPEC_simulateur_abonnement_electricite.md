@@ -75,9 +75,12 @@ Abonnement
     Tarif
     ├── couleur        : str, optionnel ("*" ou absent = tous les jours ; sinon "bleu", "blanc", "rouge", …)
     ├── libelle        : str (ex. "HP", "HC", "Base")
-    ├── debut          : "HH:MM"
-    ├── fin            : "HH:MM"  (peut être < debut : plage à cheval sur minuit, ex. 22:00 → 06:00)
+    ├── plages         : liste de Plage, optionnel (absent = tarif par défaut, voir REQ-CALC-05)
+    ├── debut, fin     : raccourci pour une seule plage, exclusif de `plages`
     └── prix_kwh       : float (€ TTC / kWh)
+    Plage
+    ├── debut          : "HH:MM"
+    └── fin            : "HH:MM"  (peut être < debut : plage à cheval sur minuit, ex. 22:00 → 06:00)
 ```
 
 Exemple de configuration (les prix ci-dessous sont **des valeurs d'exemple non contractuelles**, à remplacer par la grille tarifaire réelle en vigueur) :
@@ -97,6 +100,15 @@ abonnements:
       - { libelle: HC, debut: "22:00", fin: "06:00", prix_kwh: 0.16 }
       - { libelle: HP, debut: "06:00", fin: "22:00", prix_kwh: 0.21 }
 
+  - nom: "HP/HC 2 plages 9 kVA"
+    puissance_kva: 9
+    part_fixe: { montant: 17.00, periodicite: mensuelle }
+    tarifs:
+      - { libelle: HP, prix_kwh: 0.21 }          # tarif par défaut : hors des plages HC
+      - libelle: HC
+        prix_kwh: 0.16
+        plages: [ { debut: "01:00", fin: "07:00" }, { debut: "14:00", fin: "15:00" } ]
+
   - nom: "Tempo 9 kVA"
     puissance_kva: 9
     part_fixe: { montant: 210.00, periodicite: annuelle }
@@ -110,14 +122,14 @@ abonnements:
       - { couleur: rouge, libelle: HP, debut: "06:00", fin: "22:00", prix_kwh: 0.70 }
 ```
 
-Convention : `debut == fin` (ex. `00:00` → `00:00`) signifie « toute la journée ».
+Conventions : `debut == fin` (ex. `00:00` → `00:00`) signifie « toute la journée ». Un tarif sans `plages` ni `debut`/`fin` est le **tarif par défaut** (REQ-CALC-05). Un même libellé peut couvrir plusieurs plages, mais n'a qu'un seul prix pour une couleur donnée.
 
 ### 2.4 Calendrier des couleurs de jours (Tempo)
 
 Les abonnements à couleurs nécessitent de connaître la couleur de chaque journée de la période.
 
 - **REQ-IN-13** : le calendrier ne sert qu'à choisir, pour chaque créneau, le jeu de tarifs d'un abonnement à couleurs. Un abonnement sans couleur (tarifs sans `couleur`, ou `"*"`) l'ignore et s'applique tous les jours ; il est donc directement comparable à un abonnement à couleurs sur les mêmes mesures. Le calendrier (`--couleurs`) n'est exigé que si au moins un abonnement utilise des couleurs, et la ligne « Couleur Tempo » de la synthèse n'apparaît que dans ce cas.
-- **REQ-IN-14** : pour une couleur donnée, les tarifs applicables sont ceux de cette couleur plus ceux marqués `"*"`/sans couleur ; la vérification de couverture exacte sur 24 h (REQ-CALC-02) se fait sur cet ensemble, pour chaque couleur déclarée dans l'abonnement.
+- **REQ-IN-14** : pour une couleur donnée, les tarifs applicables sont ceux de cette couleur plus ceux marqués `"*"`/sans couleur ; la vérification de couverture (REQ-CALC-02, REQ-CALC-05) se fait sur cet ensemble, pour chaque couleur déclarée dans l'abonnement.
 
 - **REQ-IN-06** : le calendrier est fourni dans un fichier CSV `date;couleur` (ex. `2026-09-01;bleu`).
 - **REQ-IN-07** : si une journée de la période n'a pas de couleur alors qu'un abonnement en a besoin, le programme s'arrête avec un message listant les dates manquantes, **sauf** si l'option `--couleur-par-defaut <couleur>` est fournie (utile pour une estimation rapide, ex. tout en bleu). Dans ce cas, le fichier de sortie signale les jours dont la couleur a été supposée.
@@ -134,11 +146,12 @@ Pour chaque ligne : `kWh = kW × (Fin − Début) en heures`.
 Pour chaque abonnement et chaque créneau :
 
 1. Déterminer la **journée tarifaire** du créneau (voir §4.3) puis sa **couleur** via le calendrier (si l'abonnement utilise des couleurs).
-2. Sélectionner le tarif dont la couleur correspond et dont la plage horaire contient l'heure de début du créneau (si le créneau chevauche une frontière de plage, voir REQ-CALC-01).
+2. Sélectionner le tarif dont la couleur correspond et dont une plage horaire contient l'heure de début du créneau, à défaut le tarif par défaut (REQ-CALC-05) (si le créneau chevauche une frontière de plage, voir REQ-CALC-01).
 3. `coût_variable = kWh × prix_kwh`.
 
 - **REQ-CALC-01** : un créneau à cheval sur deux plages tarifaires (cas d'une frontière non alignée sur la demi-heure, ex. HC débutant à 22:15) est **réparti au prorata du temps** passé dans chaque plage, en supposant une puissance constante sur le créneau.
-- **REQ-CALC-02** : au chargement de la configuration, vérifier pour chaque abonnement et chaque couleur que les plages **couvrent exactement 24 h sans chevauchement**. Toute incohérence bloque l'exécution avec un message explicite (abonnement, couleur, plage en cause).
+- **REQ-CALC-02** : au chargement de la configuration, vérifier pour chaque abonnement et chaque couleur que les plages ne se **chevauchent pas** et que les 24 h sont **couvertes exactement une fois**, par les plages ou par le tarif par défaut. Un même libellé ne peut pas avoir deux prix. Toute incohérence bloque l'exécution avec un message explicite (abonnement, couleur, plage en cause).
+- **REQ-CALC-05** : un tarif sans plage est le **tarif par défaut** : il s'applique à toute minute qu'aucune plage ne couvre ; les plages des autres tarifs le supplantent. Au plus un tarif par défaut par couleur (en comptant les tarifs `"*"`). Sans tarif par défaut, les plages doivent couvrir les 24 h ; avec un tarif par défaut, au moins une minute doit lui revenir (sinon erreur : tarif jamais appliqué).
 
 ### 3.3 Part fixe
 
@@ -280,7 +293,7 @@ elecsubscribesimul/
   - HP/HC : affectation correcte des créneaux 21:30, 22:00, 05:30 et 06:00 ;
   - Tempo : le créneau du jour J à 01:00 prend la couleur de J−1 ;
   - prorata d'un créneau à cheval sur une frontière de plage non alignée ;
-  - validation de configuration : plages qui se chevauchent et trou de couverture ;
+  - validation de configuration : plages qui se chevauchent, trou de couverture, tarifs par défaut multiples ou jamais appliqués ;
   - jours de changement d'heure (46 et 50 créneaux) ;
   - valeurs `NA` ;
   - part fixe annuelle (année bissextile) et mensuelle (mois de 28, 30 et 31 jours).

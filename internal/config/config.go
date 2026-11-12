@@ -30,12 +30,20 @@ type yamlFixedFee struct {
 	Periodicity string  `yaml:"periodicite"`
 }
 
+// yamlTariff takes its ranges from "plages", or from "debut"/"fin" as a shortcut for a single range;
+// without either, it is the default tariff.
 type yamlTariff struct {
-	Color       string  `yaml:"couleur"`
-	Label       string  `yaml:"libelle"`
-	Start       string  `yaml:"debut"`
-	End         string  `yaml:"fin"`
-	PricePerKWh float64 `yaml:"prix_kwh"`
+	Color       string      `yaml:"couleur"`
+	Label       string      `yaml:"libelle"`
+	Start       string      `yaml:"debut"`
+	End         string      `yaml:"fin"`
+	Ranges      []yamlRange `yaml:"plages"`
+	PricePerKWh float64     `yaml:"prix_kwh"`
+}
+
+type yamlRange struct {
+	Start string `yaml:"debut"`
+	End   string `yaml:"fin"`
 }
 
 // Load reads and validates the subscriptions; every anomaly is gathered in the error.
@@ -103,16 +111,41 @@ func convert(y yamlSubscription) (subscription.Subscription, error) {
 		s.TariffDayStart = m
 	}
 	for _, t := range y.Tariffs {
-		start, err1 := subscription.ParseMinutes(t.Start)
-		end, err2 := subscription.ParseMinutes(t.End)
-		if err := errors.Join(err1, err2); err != nil {
+		ranges, err := convertRanges(t)
+		if err != nil {
 			errs = append(errs, fmt.Errorf("abonnement %q, tarif %q: %w", y.Name, t.Label, err))
 		}
 		color := strings.ToLower(strings.TrimSpace(t.Color))
 		if color == "*" {
 			color = ""
 		}
-		s.Tariffs = append(s.Tariffs, subscription.Tariff{Color: color, Label: t.Label, Start: start, End: end, PricePerKWh: t.PricePerKWh})
+		s.Tariffs = append(s.Tariffs, subscription.Tariff{Color: color, Label: t.Label, Ranges: ranges, PricePerKWh: t.PricePerKWh})
 	}
 	return s, errors.Join(errs...)
+}
+
+func convertRanges(t yamlTariff) ([]subscription.TimeRange, error) {
+	yamlRanges := t.Ranges
+	if t.Start != "" || t.End != "" {
+		if len(t.Ranges) > 0 {
+			return nil, errors.New("debut/fin et plages ne peuvent pas être utilisés ensemble")
+		}
+		yamlRanges = []yamlRange{{t.Start, t.End}}
+	}
+	var errs []error
+	var out []subscription.TimeRange
+	for _, r := range yamlRanges {
+		if r.Start == "" || r.End == "" {
+			errs = append(errs, errors.New("debut et fin doivent être renseignés ensemble"))
+			continue
+		}
+		start, err1 := subscription.ParseMinutes(r.Start)
+		end, err2 := subscription.ParseMinutes(r.End)
+		if err := errors.Join(err1, err2); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		out = append(out, subscription.TimeRange{Start: start, End: end})
+	}
+	return out, errors.Join(errs...)
 }

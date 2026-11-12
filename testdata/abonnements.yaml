@@ -10,8 +10,10 @@ abonnements:
     puissance_kva: 9
     part_fixe: { montant: 23.76, periodicite: mensuelle }
     tarifs:
-      - { libelle: HC, debut: "23:00", fin: "07:00", prix_kwh: 0.1650 }
-      - { libelle: HP, debut: "07:00", fin: "23:00", prix_kwh: 0.2231 }
+      - { libelle: HP, prix_kwh: 0.2242 }  # tarif par défaut : hors des plages HC
+      - libelle: HC
+        prix_kwh: 0.1589
+        plages: [ { debut: "01:00", fin: "07:00" }, { debut: "14:00", fin: "15:00" } ]
 
   - nom: "Zen Fixe Online 12 kVA"
     puissance_kva: 9
